@@ -1,0 +1,8 @@
+{
+  "label": "Development",
+  "position": 4,
+  "link": {
+    "type": "generated-index",
+    "description": "Информация для разработчиков - конфигурация, тестирование и зависимости"
+  }
+}

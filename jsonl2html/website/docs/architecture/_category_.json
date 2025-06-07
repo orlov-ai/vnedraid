@@ -1,0 +1,8 @@
+{
+  "label": "Архитектура",
+  "position": 2,
+  "link": {
+    "type": "generated-index",
+    "description": "Архитектура проекта jsonl2html - структура, компоненты и зависимости"
+  }
+}
