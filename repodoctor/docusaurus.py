@@ -103,6 +103,7 @@ class DocusaurusGenerator:
             
             # Skip hidden files if the flag is not enabled
             if not self._should_include_file(md_file):
+                logger.info(f"Skipping hidden file: {relative_path}")
                 continue
             
             # Skip README.md as we'll create intro.md
@@ -123,6 +124,7 @@ class DocusaurusGenerator:
             
             # Process and copy file (use original relative path for ID generation)
             self._process_single_markdown(md_file, target_path, relative_path)
+            logger.info(f"Processed: {relative_path} -> {safe_filename}")
         
         logger.info("Processed and copied markdown files")
     
@@ -269,6 +271,11 @@ export default sidebars;
             
             # Extract doc ID from filename (it was generated from path)
             doc_id = md_file.stem  # Remove .md extension
+            
+            # Additional filtering for double-underscore files when not showing hidden
+            if not self.show_hidden_files and doc_id.startswith("__"):
+                logger.info(f"Skipping double-underscore file from sidebar: {doc_id}")
+                continue
             
             # Try to reconstruct original path structure from doc_id for grouping
             if doc_id.startswith("src-"):
@@ -419,6 +426,12 @@ const config: Config = {{
     ],
   ],
 
+  themes: ['@docusaurus/theme-mermaid'],
+  
+  markdown: {{
+    mermaid: true,
+  }},
+
   themeConfig: {{
     navbar: {{
       title: '{self.project_name}',
@@ -526,6 +539,7 @@ export default config;
                 "@docusaurus/core": "3.0.1",
                 "@docusaurus/preset-classic": "3.0.1",
                 "@docusaurus/tsconfig": "3.0.1",
+                "@docusaurus/theme-mermaid": "3.0.1",
                 "@mdx-js/react": "^3.0.0",
                 "clsx": "^2.0.0",
                 "prism-react-renderer": "^2.3.0",

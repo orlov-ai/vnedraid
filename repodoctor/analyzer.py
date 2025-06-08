@@ -4,6 +4,7 @@ import ast
 from pathlib import Path
 from typing import List, Dict, Set, Optional
 import logging
+from .class_extractor import ClassExtractor, ClassInfo
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,7 @@ class FileAnalyzer:
     
     def __init__(self, repo_path: str):
         self.repo_path = Path(repo_path)
+        self.class_extractor = ClassExtractor(repo_path)
         
     def scan_code_files(self) -> List[str]:
         """Scan repository for code files to document"""
@@ -134,6 +136,14 @@ class FileAnalyzer:
                 dependency_graph[file_path] = []
         
         return dependency_graph
+    
+    def analyze_project_classes(self, files: List[str]) -> Dict[str, List[ClassInfo]]:
+        """Analyze class structures across all project files"""
+        return self.class_extractor.extract_classes_from_files(files)
+    
+    def get_class_hierarchy(self) -> Dict[str, List[str]]:
+        """Get inheritance hierarchy for all classes"""
+        return self.class_extractor.get_class_hierarchy()
     
     def _should_ignore(self, name: str) -> bool:
         """Check if file/directory should be ignored"""

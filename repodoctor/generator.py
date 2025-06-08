@@ -9,6 +9,7 @@ import time
 
 from .client import OpenRouterClient
 from .analyzer import FileAnalyzer
+from .diagram_generator import MermaidDiagramGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +57,10 @@ class DocumentationGenerator:
         # Step 2: Analyze dependencies
         logger.info("Analyzing project dependencies...")
         self.dependency_graph = self.analyzer.analyze_project_dependencies(code_files)
+        
+        # Step 2.5: Analyze class structures
+        logger.info("Analyzing class structures...")
+        self.classes_by_file = self.analyzer.analyze_project_classes(code_files)
         
         # Step 3: Generate documentation for each file
         logger.info(f"Generating documentation for {len(code_files)} files...")
@@ -156,6 +161,9 @@ class DocumentationGenerator:
         # Create dependencies graph file
         self._create_dependencies_file()
         
+        # Generate diagrams
+        self._generate_diagrams()
+        
         logger.info(f"Created documentation structure at {self.output_path}")
     
     def _generate_docusaurus_site(self, auto_install: bool = False, auto_start: bool = False, show_hidden_files: bool = False) -> None:
@@ -219,9 +227,10 @@ class DocumentationGenerator:
 
 {file_tree}
 
-## Граф зависимостей
+## Визуализация проекта
 
-Подробный анализ зависимостей между модулями доступен в файле [dependencies.md](dependencies.md).
+- **📊 Диаграммы**: [diagrams.md](diagrams.md) - Классы, зависимости и структура
+- **🔗 Граф зависимостей**: [dependencies.md](dependencies.md) - Подробный анализ
 
 ## Навигация
 
@@ -333,6 +342,102 @@ class DocumentationGenerator:
                 reverse_deps[dep].append(file_path)
         
         return reverse_deps
+    
+    def _generate_diagrams(self) -> None:
+        """Generate Mermaid diagrams for classes and dependencies"""
+        logger.info("Generating project diagrams...")
+        
+        diagram_gen = MermaidDiagramGenerator(self.project_name)
+        
+        # Flatten all classes from all files
+        all_classes = {}
+        for file_path, classes in self.classes_by_file.items():
+            for class_info in classes:
+                all_classes[class_info.name] = class_info
+        
+        # Get project files for dependency filtering
+        project_files = set(self.file_docs.keys())
+        
+        # Generate class diagram
+        has_classes = len(all_classes) > 0
+        class_diagram = diagram_gen.generate_class_diagram(self.classes_by_file, all_classes)
+        
+        # Generate dependency graph
+        has_dependencies = any(deps for deps in self.dependency_graph.values())
+        dependency_diagram = diagram_gen.generate_dependency_graph(self.dependency_graph, project_files)
+        
+        # Generate file structure diagram
+        file_structure_diagram = diagram_gen.generate_file_structure_diagram(list(self.file_docs.keys()))
+        
+        # Create diagrams summary
+        diagrams_summary = diagram_gen.create_diagrams_summary(has_classes, has_dependencies)
+        
+        # Create diagrams.md file
+        diagrams_content = f"""{diagrams_summary}
+
+## 📁 Структура файлов
+
+{file_structure_diagram}
+
+"""
+        
+        if has_classes:
+            diagrams_content += f"""
+## 📊 Диаграмма классов
+
+{class_diagram}
+
+### Описание классов
+
+"""
+            
+            for class_name, class_info in all_classes.items():
+                diagrams_content += f"""
+**{class_name}** ({class_info.file_path})
+- Родительские классы: {', '.join(class_info.parent_classes) if class_info.parent_classes else 'нет'}
+- Методы: {len(class_info.methods)}
+- Свойства: {len(class_info.properties)}
+
+"""
+        
+        if has_dependencies:
+            diagrams_content += f"""
+## 🔗 Граф зависимостей
+
+{dependency_diagram}
+
+### Статистика зависимостей
+
+"""
+            
+            # Add dependency statistics
+            external_deps = set()
+            internal_deps = set()
+            
+            for deps in self.dependency_graph.values():
+                for dep in deps:
+                    if dep in project_files:
+                        internal_deps.add(dep)
+                    else:
+                        external_deps.add(dep)
+            
+            diagrams_content += f"""
+- **Внутренние зависимости**: {len(internal_deps)} модулей
+- **Внешние зависимости**: {len(external_deps)} библиотек
+- **Общее количество связей**: {sum(len(deps) for deps in self.dependency_graph.values())}
+
+"""
+        
+        diagrams_content += """
+---
+
+*Диаграммы автоматически обновляются при регенерации документации*
+"""
+        
+        # Write diagrams file
+        (self.output_path / "diagrams.md").write_text(diagrams_content, encoding='utf-8')
+        
+        logger.info("Generated project diagrams")
     
     def _get_project_context(self) -> str:
         """Get basic project context from common files"""
