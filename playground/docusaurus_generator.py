@@ -12,11 +12,12 @@ logger = logging.getLogger(__name__)
 class DocusaurusGenerator:
     """Generate Docusaurus site from markdown documentation"""
     
-    def __init__(self, docs_path: str, project_name: str, output_path: str):
+    def __init__(self, docs_path: str, project_name: str, output_path: str, show_hidden_files: bool = False):
         self.docs_path = Path(docs_path)
         self.project_name = project_name
         self.output_path = Path(output_path)
         self.website_path = self.output_path / "website"
+        self.show_hidden_files = show_hidden_files
         
         # Docusaurus configuration
         self.site_config = {
@@ -64,6 +65,13 @@ class DocusaurusGenerator:
         
         logger.info(f"Docusaurus site generated successfully at {self.website_path}")
     
+    def _should_include_file(self, file_path: Path) -> bool:
+        """Check if a file should be included in the documentation"""
+        # Filter hidden files if the flag is not enabled
+        if not self.show_hidden_files and file_path.name.startswith('.'):
+            return False
+        return True
+    
     def _create_docusaurus_structure(self) -> None:
         """Create basic Docusaurus directory structure"""
         
@@ -92,6 +100,10 @@ class DocusaurusGenerator:
         # Process all markdown files from the docs directory
         for md_file in self.docs_path.rglob("*.md"):
             relative_path = md_file.relative_to(self.docs_path)
+            
+            # Skip hidden files if the flag is not enabled
+            if not self._should_include_file(md_file):
+                continue
             
             # Skip README.md as we'll create intro.md
             if relative_path.name == "README.md":
@@ -256,6 +268,10 @@ export default sidebars;
         individual_files = []
         for md_file in docs_dir.glob("*.md"):
             if md_file.name not in ["intro.md", "dependencies.md"]:
+                # Skip hidden files if the flag is not enabled
+                if not self._should_include_file(md_file):
+                    continue
+                
                 # Use the same ID generation logic as in _process_single_markdown
                 relative_path = md_file.relative_to(docs_dir)
                 doc_id = self._generate_safe_doc_id(relative_path)
@@ -279,6 +295,10 @@ export default sidebars;
         # Add files in this directory
         for md_file in category_dir.glob("*.md"):
             relative_path = md_file.relative_to(docs_dir)
+            
+            # Skip hidden files if the flag is not enabled
+            if not self._should_include_file(md_file):
+                continue
             
             # Skip __init__.py files as Docusaurus often ignores them
             if '__init__.py' in str(relative_path):

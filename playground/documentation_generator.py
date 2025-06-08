@@ -37,9 +37,14 @@ class DocumentationGenerator:
         self.dependency_graph = {}
         
     def generate_documentation(self, max_workers: int = 3, enable_docusaurus: bool = False, 
-                             auto_install: bool = False, auto_start: bool = False) -> None:
+                             auto_install: bool = False, auto_start: bool = False,
+                             docusaurus_show_hidden: bool = False) -> None:
         """Generate complete project documentation"""
         logger.info(f"Starting documentation generation for {self.project_name}")
+        
+        # Store docusaurus settings for later use
+        self.enable_docusaurus = enable_docusaurus
+        self.docusaurus_show_hidden = docusaurus_show_hidden
         
         # Step 1: Scan for code files
         logger.info("Scanning for code files...")
@@ -68,7 +73,7 @@ class DocumentationGenerator:
         # Step 6: Generate Docusaurus site if requested
         if enable_docusaurus:
             logger.info("Generating Docusaurus site...")
-            self._generate_docusaurus_site(auto_install, auto_start)
+            self._generate_docusaurus_site(auto_install, auto_start, docusaurus_show_hidden)
         
         logger.info(f"Documentation generation completed! Output: {self.output_path}")
     
@@ -154,17 +159,32 @@ class DocumentationGenerator:
         
         logger.info(f"Created documentation structure at {self.output_path}")
     
-    def _generate_docusaurus_site(self, auto_install: bool = False, auto_start: bool = False) -> None:
+    def _generate_docusaurus_site(self, auto_install: bool = False, auto_start: bool = False, show_hidden_files: bool = False) -> None:
         """Generate Docusaurus site from the markdown documentation"""
         try:
             from docusaurus_generator import DocusaurusGenerator
             
-            docusaurus_output_path = self.output_path.parent / f"{self.project_name}-docusaurus"
+            # Create unique docusaurus output path based on docs path
+            docs_dir_name = self.output_path.name
+            
+            # Replace 'docs' with 'docusaurus' in the directory name
+            if '-docs-' in docs_dir_name:
+                # Case: multi-env-docs-with-hidden -> multi-env-docusaurus-with-hidden
+                docusaurus_dir_name = docs_dir_name.replace('-docs-', '-docusaurus-')
+            elif docs_dir_name.endswith('-docs'):
+                # Case: multi-env-docs -> multi-env-docusaurus
+                docusaurus_dir_name = docs_dir_name.replace('-docs', '-docusaurus')
+            else:
+                # Fallback case
+                docusaurus_dir_name = f"{self.project_name}-docusaurus"
+            
+            docusaurus_output_path = self.output_path.parent / docusaurus_dir_name
             
             docusaurus_gen = DocusaurusGenerator(
                 docs_path=str(self.output_path),
                 project_name=self.project_name,
-                output_path=str(docusaurus_output_path)
+                output_path=str(docusaurus_output_path),
+                show_hidden_files=show_hidden_files
             )
             
             # Generate site with optional auto-install and auto-start
@@ -220,9 +240,17 @@ class DocumentationGenerator:
         """Create a file tree with links to documentation"""
         lines = []
         
+        # Determine which files to include based on Docusaurus settings
+        files_to_include = self.file_docs.keys()
+        
+        # If generating Docusaurus and not showing hidden files, filter them out
+        if hasattr(self, 'enable_docusaurus') and self.enable_docusaurus and \
+           hasattr(self, 'docusaurus_show_hidden') and not self.docusaurus_show_hidden:
+            files_to_include = [f for f in self.file_docs.keys() if not Path(f).name.startswith('.')]
+        
         # Group files by directory
         dir_structure = {}
-        for file_path in sorted(self.file_docs.keys()):
+        for file_path in sorted(files_to_include):
             parts = Path(file_path).parts
             current = dir_structure
             
@@ -339,6 +367,11 @@ class DocumentationGenerator:
         """Get links to configuration files"""
         config_files = [f for f in self.file_docs.keys() 
                        if any(ext in f.lower() for ext in ['.toml', '.json', '.yaml', '.yml', 'config'])]
+        
+        # If generating Docusaurus and not showing hidden files, filter them out
+        if hasattr(self, 'enable_docusaurus') and self.enable_docusaurus and \
+           hasattr(self, 'docusaurus_show_hidden') and not self.docusaurus_show_hidden:
+            config_files = [f for f in config_files if not Path(f).name.startswith('.')]
         
         if config_files:
             return ", ".join([f"[{Path(f).name}]({f}.md)" for f in config_files[:5]])

@@ -91,6 +91,12 @@ Examples:
         help="Automatically start Docusaurus dev server (requires --docusaurus and --auto-install)"
     )
     
+    parser.add_argument(
+        "--docusaurus-show-hidden",
+        action="store_true",
+        help="Include hidden files (starting with .) in Docusaurus documentation"
+    )
+    
     args = parser.parse_args()
     
     # Setup logging
@@ -163,7 +169,8 @@ Examples:
                 max_workers=args.workers,
                 enable_docusaurus=args.docusaurus,
                 auto_install=args.auto_install,
-                auto_start=args.auto_start
+                auto_start=args.auto_start,
+                docusaurus_show_hidden=args.docusaurus_show_hidden
             )
             
             logger.info("Documentation generation completed successfully!")
