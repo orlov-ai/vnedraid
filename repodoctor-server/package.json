@@ -1,0 +1,38 @@
+{
+  "name": "repodoctor-mcp-server",
+  "version": "0.1.0",
+  "description": "MCP server for RepoDoctor - provides access to generated documentation with search capabilities",
+  "main": "build/index.js",
+  "type": "module",
+  "bin": {
+    "repodoctor-mcp-server": "build/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node build/index.js",
+    "dev": "tsc --watch",
+    "clean": "rm -rf build",
+    "lint": "eslint src --ext .ts",
+    "test": "jest"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "documentation",
+    "llm",
+    "ai",
+    "repodoctor"
+  ],
+  "author": "Alexander Orlov",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "repodoctor": {
+      "command": "node",
+      "args": [
+        "/Users/alex/Documents/Cline/MCP/repodoctor-server/build/index.js"
+      ],
+      "cwd": "/Users/alex/Documents/Cline/MCP/repodoctor-server"
+    }
+  }
+}
