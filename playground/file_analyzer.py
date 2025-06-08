@@ -45,7 +45,9 @@ class FileAnalyzer:
         '.DS_Store',
         '*.pyc',
         '*.pyo',
-        '*.egg-info'
+        '*.egg-info',
+        '*-docusaurus',
+        '.docusaurus'
     }
     
     def __init__(self, repo_path: str):
@@ -132,6 +134,10 @@ class FileAnalyzer:
     
     def _should_ignore(self, name: str) -> bool:
         """Check if file/directory should be ignored"""
+        # Check for docs folders with UUID pattern
+        if re.match(r'.*-docs-[a-f0-9]{8}$', name):
+            return True
+            
         for pattern in self.IGNORE_PATTERNS:
             if pattern.startswith('*'):
                 if name.endswith(pattern[1:]):

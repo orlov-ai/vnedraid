@@ -1,5 +1,6 @@
 import os
 import shutil
+import uuid
 from pathlib import Path
 from typing import Dict, List
 import logging
@@ -17,8 +18,15 @@ class DocumentationGenerator:
     
     def __init__(self, repo_path: str, output_path: str = None, api_key: str = None):
         self.repo_path = Path(repo_path)
-        self.output_path = Path(output_path) if output_path else self.repo_path / "docs"
         self.project_name = self.repo_path.name
+        
+        # Generate temporary output path with UUID to avoid conflicts
+        if output_path:
+            self.output_path = Path(output_path)
+        else:
+            # Create temporary docs folder with UUID
+            docs_uuid = str(uuid.uuid4())[:8]
+            self.output_path = self.repo_path.parent / f"{self.project_name}-docs-{docs_uuid}"
         
         # Initialize components
         self.client = OpenRouterClient(api_key)
@@ -28,7 +36,8 @@ class DocumentationGenerator:
         self.file_docs = {}
         self.dependency_graph = {}
         
-    def generate_documentation(self, max_workers: int = 3, enable_docusaurus: bool = False) -> None:
+    def generate_documentation(self, max_workers: int = 3, enable_docusaurus: bool = False, 
+                             auto_install: bool = False, auto_start: bool = False) -> None:
         """Generate complete project documentation"""
         logger.info(f"Starting documentation generation for {self.project_name}")
         
@@ -59,7 +68,7 @@ class DocumentationGenerator:
         # Step 6: Generate Docusaurus site if requested
         if enable_docusaurus:
             logger.info("Generating Docusaurus site...")
-            self._generate_docusaurus_site()
+            self._generate_docusaurus_site(auto_install, auto_start)
         
         logger.info(f"Documentation generation completed! Output: {self.output_path}")
     
@@ -145,25 +154,37 @@ class DocumentationGenerator:
         
         logger.info(f"Created documentation structure at {self.output_path}")
     
-    def _generate_docusaurus_site(self) -> None:
+    def _generate_docusaurus_site(self, auto_install: bool = False, auto_start: bool = False) -> None:
         """Generate Docusaurus site from the markdown documentation"""
         try:
             from docusaurus_generator import DocusaurusGenerator
             
+            docusaurus_output_path = self.output_path.parent / f"{self.project_name}-docusaurus"
+            
             docusaurus_gen = DocusaurusGenerator(
                 docs_path=str(self.output_path),
                 project_name=self.project_name,
-                output_path=str(self.output_path.parent / f"{self.project_name}-docusaurus")
+                output_path=str(docusaurus_output_path)
             )
             
-            docusaurus_gen.generate_site()
+            # Generate site with optional auto-install and auto-start
+            docusaurus_gen.generate_site(auto_install=auto_install, auto_start=auto_start)
             docusaurus_gen.create_readme()
             
-            logger.info("Docusaurus site generation completed!")
+            logger.info(f"Docusaurus site generated at: {docusaurus_output_path}")
+            
+            if auto_install:
+                logger.info("Dependencies installed automatically")
+            else:
+                logger.info("To install dependencies and start:")
+                logger.info(f"  cd {docusaurus_output_path}/website")
+                logger.info("  npm install")
+                logger.info("  npm start")
             
         except Exception as e:
             logger.error(f"Failed to generate Docusaurus site: {e}")
             logger.info("Continuing with standard documentation...")
+            raise
     
     def _create_main_readme(self, project_summary: str) -> str:
         """Create the main README.md with navigation"""

@@ -79,6 +79,18 @@ Examples:
         help="Generate Docusaurus site in addition to markdown documentation"
     )
     
+    parser.add_argument(
+        "--auto-install",
+        action="store_true",
+        help="Automatically install Docusaurus dependencies (requires --docusaurus)"
+    )
+    
+    parser.add_argument(
+        "--auto-start",
+        action="store_true",
+        help="Automatically start Docusaurus dev server (requires --docusaurus and --auto-install)"
+    )
+    
     args = parser.parse_args()
     
     # Setup logging
@@ -149,7 +161,9 @@ Examples:
             
             generator.generate_documentation(
                 max_workers=args.workers,
-                enable_docusaurus=args.docusaurus
+                enable_docusaurus=args.docusaurus,
+                auto_install=args.auto_install,
+                auto_start=args.auto_start
             )
             
             logger.info("Documentation generation completed successfully!")
