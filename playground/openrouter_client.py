@@ -13,7 +13,7 @@ class OpenRouterClient:
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.getenv('OPENROUTER_API_KEY')
         self.base_url = os.getenv('OPENAI_BASE_URL', 'https://openrouter.ai/api/v1')
-        self.model = "google/gemini-2.5-pro-preview"
+        self.model = "google/gemini-2.5-flash-preview-05-20"
         
         if not self.api_key:
             raise ValueError("OpenRouter API key not found. Set OPENROUTER_API_KEY environment variable.")

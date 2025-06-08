@@ -28,7 +28,7 @@ class DocumentationGenerator:
         self.file_docs = {}
         self.dependency_graph = {}
         
-    def generate_documentation(self, max_workers: int = 3) -> None:
+    def generate_documentation(self, max_workers: int = 3, enable_docusaurus: bool = False) -> None:
         """Generate complete project documentation"""
         logger.info(f"Starting documentation generation for {self.project_name}")
         
@@ -55,6 +55,11 @@ class DocumentationGenerator:
         # Step 5: Create documentation structure
         logger.info("Creating documentation structure...")
         self._create_documentation_structure(project_summary)
+        
+        # Step 6: Generate Docusaurus site if requested
+        if enable_docusaurus:
+            logger.info("Generating Docusaurus site...")
+            self._generate_docusaurus_site()
         
         logger.info(f"Documentation generation completed! Output: {self.output_path}")
     
@@ -139,6 +144,26 @@ class DocumentationGenerator:
         self._create_dependencies_file()
         
         logger.info(f"Created documentation structure at {self.output_path}")
+    
+    def _generate_docusaurus_site(self) -> None:
+        """Generate Docusaurus site from the markdown documentation"""
+        try:
+            from docusaurus_generator import DocusaurusGenerator
+            
+            docusaurus_gen = DocusaurusGenerator(
+                docs_path=str(self.output_path),
+                project_name=self.project_name,
+                output_path=str(self.output_path.parent / f"{self.project_name}-docusaurus")
+            )
+            
+            docusaurus_gen.generate_site()
+            docusaurus_gen.create_readme()
+            
+            logger.info("Docusaurus site generation completed!")
+            
+        except Exception as e:
+            logger.error(f"Failed to generate Docusaurus site: {e}")
+            logger.info("Continuing with standard documentation...")
     
     def _create_main_readme(self, project_summary: str) -> str:
         """Create the main README.md with navigation"""

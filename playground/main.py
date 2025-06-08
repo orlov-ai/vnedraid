@@ -73,6 +73,12 @@ Examples:
         help="Show what files would be documented without generating docs"
     )
     
+    parser.add_argument(
+        "--docusaurus",
+        action="store_true",
+        help="Generate Docusaurus site in addition to markdown documentation"
+    )
+    
     args = parser.parse_args()
     
     # Setup logging
@@ -94,6 +100,10 @@ Examples:
     if not api_key and not args.dry_run:
         logger.error("OpenRouter API key is required. Set OPENROUTER_API_KEY environment variable or use --api-key")
         sys.exit(1)
+    
+    # For dry run, we don't need API key - set a dummy one
+    if args.dry_run and not api_key:
+        api_key = "dummy-key-for-dry-run"
     
     try:
         # Initialize generator
@@ -137,10 +147,21 @@ Examples:
             logger.info(f"Output directory: {generator.output_path}")
             logger.info(f"Max workers: {args.workers}")
             
-            generator.generate_documentation(max_workers=args.workers)
+            generator.generate_documentation(
+                max_workers=args.workers,
+                enable_docusaurus=args.docusaurus
+            )
             
             logger.info("Documentation generation completed successfully!")
             logger.info(f"View the documentation at: {generator.output_path / 'README.md'}")
+            
+            if args.docusaurus:
+                docusaurus_path = generator.output_path.parent / f"{generator.project_name}-docusaurus"
+                logger.info(f"Docusaurus site available at: {docusaurus_path}")
+                logger.info("To start the Docusaurus site:")
+                logger.info(f"  cd {docusaurus_path}")
+                logger.info("  npm install")
+                logger.info("  npm start")
     
     except KeyboardInterrupt:
         logger.info("Documentation generation interrupted by user")
