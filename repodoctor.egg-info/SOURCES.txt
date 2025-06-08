@@ -1,0 +1,15 @@
+LICENSE
+README.md
+pyproject.toml
+repodoctor/__init__.py
+repodoctor/analyzer.py
+repodoctor/cli.py
+repodoctor/client.py
+repodoctor/docusaurus.py
+repodoctor/generator.py
+repodoctor.egg-info/PKG-INFO
+repodoctor.egg-info/SOURCES.txt
+repodoctor.egg-info/dependency_links.txt
+repodoctor.egg-info/entry_points.txt
+repodoctor.egg-info/requires.txt
+repodoctor.egg-info/top_level.txt

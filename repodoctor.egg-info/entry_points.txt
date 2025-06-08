@@ -1,0 +1,2 @@
+[console_scripts]
+repodoctor = repodoctor.cli:main
