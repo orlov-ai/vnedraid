@@ -24,6 +24,7 @@ class FileAnalyzer:
         '.h': 'c',
         '.rs': 'rust',
         '.go': 'go',
+        '.php': 'php',
         '.toml': 'toml',
         '.yaml': 'yaml',
         '.yml': 'yaml',
@@ -110,6 +111,8 @@ class FileAnalyzer:
             return self._extract_rust_imports(content)
         elif file_type == 'go':
             return self._extract_go_imports(content)
+        elif file_type == 'php':
+            return self._extract_php_imports(content)
         else:
             return []
     
@@ -184,6 +187,25 @@ class FileAnalyzer:
                     imports.append(match.group(1))
         
         return imports
+    
+    def _extract_php_imports(self, content: str) -> List[str]:
+        """Extract PHP use statements, requires, and includes"""
+        imports = []
+        
+        # Patterns for different PHP import styles
+        patterns = [
+            r'^use\s+([a-zA-Z_\\][a-zA-Z0-9_\\]*)',  # use statements
+            r'require(?:_once)?\s*\(?[\'"]([^\'"]+)[\'"]',  # require/require_once
+            r'include(?:_once)?\s*\(?[\'"]([^\'"]+)[\'"]',  # include/include_once
+        ]
+        
+        for line in content.split('\n'):
+            line = line.strip()
+            for pattern in patterns:
+                matches = re.findall(pattern, line)
+                imports.extend(matches)
+        
+        return list(set(imports))
     
     def _extract_js_imports(self, content: str) -> List[str]:
         """Extract JavaScript/TypeScript imports"""

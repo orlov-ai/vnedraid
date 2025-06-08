@@ -116,11 +116,12 @@ class DocusaurusGenerator:
                 # Skip files that are already in a docs/ subdirectory to prevent nesting
                 continue
             
-            # Determine target path
-            target_path = self.website_path / "docs" / relative_path
-            target_path.parent.mkdir(parents=True, exist_ok=True)
+            # Flatten all files to root docs directory to avoid nested structure issues
+            # Use safe filename based on original path
+            safe_filename = self._generate_safe_doc_id(relative_path) + ".md"
+            target_path = self.website_path / "docs" / safe_filename
             
-            # Process and copy file
+            # Process and copy file (use original relative path for ID generation)
             self._process_single_markdown(md_file, target_path, relative_path)
         
         logger.info("Processed and copied markdown files")
@@ -155,8 +156,7 @@ title: Введение
         title = self._generate_title_from_path(relative_path)
         
         # Generate safe document ID for Docusaurus
-        # For files in subdirectories, use just the relative path-based ID without folder prefix
-        # Docusaurus will automatically add the folder prefix when creating the composite ID
+        # For files in subdirectories, create category-based IDs like "category/filename"
         doc_id = self._generate_safe_doc_id(relative_path)
         
         # Create frontmatter
@@ -200,15 +200,15 @@ title: {title}
         # Convert path to string and remove .md extension
         path_str = str(path.with_suffix(''))
         
-        # Replace all problematic characters including slashes with dashes
-        safe_id = path_str.replace('/', '-').replace('\\', '-').replace('.', '-')
+        # Replace slashes with dashes for Docusaurus (slashes not allowed in IDs)
+        safe_id = path_str.replace('/', '-').replace('\\', '-')
         
-        # Remove multiple consecutive dashes
-        while '--' in safe_id:
-            safe_id = safe_id.replace('--', '-')
+        # Replace dots with dashes for safer IDs
+        safe_id = safe_id.replace('.', '-')
         
-        # Remove leading/trailing dashes
-        safe_id = safe_id.strip('-')
+        # Ensure it starts with a letter or underscore
+        if safe_id and not (safe_id[0].isalpha() or safe_id[0] == '_'):
+            safe_id = 'doc-' + safe_id
         
         return safe_id
     
@@ -254,38 +254,83 @@ export default sidebars;
             f.write(sidebar_content)
     
     def _build_sidebar_categories(self, docs_dir: Path) -> List[Dict]:
-        """Build sidebar categories from directory structure"""
-        categories = []
-        
-        # Scan for subdirectories
-        for item in docs_dir.iterdir():
-            if item.is_dir():
-                category = self._build_category(item, docs_dir)
-                if category:
-                    categories.append(category)
-        
-        # Add individual files that aren't in subdirectories
+        """Build sidebar categories from flattened file structure"""
+        categories = {}
         individual_files = []
+        
+        # Process all markdown files in docs directory (now flattened)
         for md_file in docs_dir.glob("*.md"):
-            if md_file.name not in ["intro.md", "dependencies.md"]:
-                # Skip hidden files if the flag is not enabled
-                if not self._should_include_file(md_file):
-                    continue
+            if md_file.name in ["intro.md", "dependencies.md"]:
+                continue
                 
-                # Use the same ID generation logic as in _process_single_markdown
-                relative_path = md_file.relative_to(docs_dir)
-                doc_id = self._generate_safe_doc_id(relative_path)
-                title = self._generate_title_from_path(relative_path)
+            # Skip hidden files if the flag is not enabled
+            if not self._should_include_file(md_file):
+                continue
+            
+            # Extract doc ID from filename (it was generated from path)
+            doc_id = md_file.stem  # Remove .md extension
+            
+            # Try to reconstruct original path structure from doc_id for grouping
+            if doc_id.startswith("src-"):
+                # Group source files
+                self._add_to_category_structure(categories, doc_id, "src", doc_id)
+            elif doc_id.startswith("tests-"):
+                # Group test files  
+                self._add_to_category_structure(categories, doc_id, "tests", doc_id)
+            else:
+                # Individual files
+                title = self._generate_title_from_doc_id(doc_id)
                 individual_files.append({
                     "type": "doc",
                     "id": doc_id,
                     "label": title
                 })
         
-        if individual_files:
-            categories.extend(individual_files)
+        # Convert category structure to sidebar format
+        result = []
+        for category_name, items in categories.items():
+            result.append({
+                "type": "category",
+                "label": category_name.title(),
+                "items": items
+            })
         
-        return categories
+        # Add individual files
+        result.extend(individual_files)
+        
+        return result
+    
+    def _add_to_category_structure(self, categories: Dict, doc_id: str, category_name: str, full_doc_id: str):
+        """Add document to category structure"""
+        if category_name not in categories:
+            categories[category_name] = []
+        
+        title = self._generate_title_from_doc_id(doc_id)
+        categories[category_name].append({
+            "type": "doc",
+            "id": full_doc_id,
+            "label": title
+        })
+    
+    def _generate_title_from_doc_id(self, doc_id: str) -> str:
+        """Generate title from document ID"""
+        # Remove common prefixes
+        title = doc_id
+        if title.startswith("src-"):
+            title = title[4:]
+        elif title.startswith("tests-"):
+            title = title[6:]
+        
+        # Convert dashes back to more readable format
+        # Keep php extensions visible
+        if title.endswith("-php"):
+            title = title[:-4] + ".php"
+        elif title.endswith("-js"):
+            title = title[:-3] + ".js"
+        elif title.endswith("-ts"):
+            title = title[:-3] + ".ts"
+        
+        return title
     
     def _build_category(self, category_dir: Path, docs_dir: Path) -> Optional[Dict]:
         """Build a category from a directory"""
@@ -294,43 +339,20 @@ export default sidebars;
         
         # Add files in this directory
         for md_file in category_dir.glob("*.md"):
-            relative_path = md_file.relative_to(docs_dir)
+            # Calculate relative path from docs_dir for the document ID
+            relative_path_from_docs = md_file.relative_to(docs_dir)
             
             # Skip hidden files if the flag is not enabled
             if not self._should_include_file(md_file):
                 continue
             
             # Skip __init__.py files as Docusaurus often ignores them
-            if '__init__.py' in str(relative_path):
+            if '__init__.py' in str(relative_path_from_docs):
                 continue
             
-            # Read the actual ID from the file's frontmatter
-            try:
-                with open(md_file, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    # Extract ID from frontmatter
-                    if content.startswith('---'):
-                        frontmatter_end = content.find('---', 3)
-                        if frontmatter_end != -1:
-                            frontmatter = content[3:frontmatter_end]
-                            for line in frontmatter.split('\n'):
-                                if line.strip().startswith('id:'):
-                                    file_id = line.split(':', 1)[1].strip()
-                                    break
-                            else:
-                                file_id = self._generate_safe_doc_id(relative_path)
-                        else:
-                            file_id = self._generate_safe_doc_id(relative_path)
-                    else:
-                        file_id = self._generate_safe_doc_id(relative_path)
-            except:
-                file_id = self._generate_safe_doc_id(relative_path)
-            
-            # For files in subdirectories, Docusaurus creates composite IDs like "category/file-id"
-            category_name = category_dir.name
-            doc_id = f"{category_name}/{file_id}"
-            
-            title = self._generate_title_from_path(relative_path)
+            # Generate the exact same ID as we used when creating the file
+            doc_id = self._generate_safe_doc_id(relative_path_from_docs)
+            title = self._generate_title_from_path(relative_path_from_docs)
             
             items.append({
                 "type": "doc",

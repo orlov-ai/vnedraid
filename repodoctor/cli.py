@@ -41,6 +41,7 @@ Examples:
     
     parser.add_argument(
         "repo_path",
+        nargs='?',
         help="Path to the repository to document"
     )
     
@@ -97,33 +98,118 @@ Examples:
         help="Include hidden files (starting with .) in Docusaurus documentation"
     )
     
+    parser.add_argument(
+        "--from-docs",
+        help="Skip LLM generation and create Docusaurus site from existing docs directory"
+    )
+    
     args = parser.parse_args()
     
     # Setup logging
     setup_logging(args.verbose)
     logger = logging.getLogger(__name__)
     
-    # Validate repository path
-    repo_path = Path(args.repo_path)
-    if not repo_path.exists():
-        logger.error(f"Repository path does not exist: {repo_path}")
+    # Check that either repo_path or --from-docs is provided
+    if not args.repo_path and not args.from_docs:
+        logger.error("Either repo_path or --from-docs must be provided")
+        parser.print_help()
         sys.exit(1)
     
-    if not repo_path.is_dir():
-        logger.error(f"Repository path is not a directory: {repo_path}")
-        sys.exit(1)
+    # Handle --from-docs mode
+    if args.from_docs:
+        docs_path = Path(args.from_docs)
+        if not docs_path.exists():
+            logger.error(f"Docs directory does not exist: {docs_path}")
+            sys.exit(1)
+        
+        if not docs_path.is_dir():
+            logger.error(f"Docs path is not a directory: {docs_path}")
+            sys.exit(1)
+        
+        # For --from-docs mode, we require --docusaurus
+        if not args.docusaurus:
+            logger.error("--from-docs requires --docusaurus flag")
+            sys.exit(1)
     
-    # Check API key
+    # Validate repository path (only needed if not using --from-docs)
+    if not args.from_docs:
+        repo_path = Path(args.repo_path)
+        if not repo_path.exists():
+            logger.error(f"Repository path does not exist: {repo_path}")
+            sys.exit(1)
+        
+        if not repo_path.is_dir():
+            logger.error(f"Repository path is not a directory: {repo_path}")
+            sys.exit(1)
+    
+    # Check API key (only needed if not using --from-docs and not dry-run)
     api_key = args.api_key or os.getenv('OPENROUTER_API_KEY')
-    if not api_key and not args.dry_run:
+    if not api_key and not args.dry_run and not args.from_docs:
         logger.error("OpenRouter API key is required. Set OPENROUTER_API_KEY environment variable or use --api-key")
         sys.exit(1)
     
-    # For dry run, we don't need API key - set a dummy one
-    if args.dry_run and not api_key:
+    # For dry run or from-docs, we don't need API key - set a dummy one
+    if (args.dry_run or args.from_docs) and not api_key:
         api_key = "dummy-key-for-dry-run"
     
     try:
+        if args.from_docs:
+            # Handle --from-docs mode: create Docusaurus site from existing docs
+            from .docusaurus import DocusaurusGenerator
+            
+            docs_path = Path(args.from_docs)
+            
+            # Extract project name from docs directory name or use a default
+            if docs_path.name.endswith('-docs'):
+                project_name = docs_path.name[:-5]  # Remove '-docs' suffix
+            elif '-docs-' in docs_path.name:
+                # Handle UUID suffixed names like "gonkey-docs-64876fd3"
+                project_name = docs_path.name.split('-docs-')[0]
+            else:
+                project_name = docs_path.name
+            
+            # Create Docusaurus output path
+            if args.output:
+                docusaurus_output_path = Path(args.output)
+            else:
+                # Create output path next to docs directory
+                docusaurus_output_path = docs_path.parent / f"{project_name}-docusaurus"
+            
+            logger.info(f"Creating Docusaurus site from existing docs: {docs_path}")
+            logger.info(f"Project name: {project_name}")
+            logger.info(f"Output path: {docusaurus_output_path}")
+            
+            # Create Docusaurus generator
+            docusaurus_gen = DocusaurusGenerator(
+                docs_path=str(docs_path),
+                project_name=project_name,
+                output_path=str(docusaurus_output_path),
+                show_hidden_files=args.docusaurus_show_hidden
+            )
+            
+            # Generate site
+            docusaurus_gen.generate_site(
+                auto_install=args.auto_install,
+                auto_start=args.auto_start
+            )
+            docusaurus_gen.create_readme()
+            
+            logger.info("Docusaurus site created successfully!")
+            logger.info(f"Site available at: {docusaurus_output_path}")
+            
+            if args.auto_install:
+                logger.info("Dependencies installed automatically")
+            else:
+                logger.info("To install dependencies and start:")
+                logger.info(f"  cd {docusaurus_output_path}/website")
+                logger.info("  npm install")
+                logger.info("  npm start")
+            
+            return
+        
+        # Normal mode: full documentation generation
+        repo_path = Path(args.repo_path)
+        
         # Initialize generator
         generator = DocumentationGenerator(
             repo_path=str(repo_path),
